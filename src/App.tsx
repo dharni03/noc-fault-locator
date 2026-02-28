@@ -14,8 +14,9 @@ import {
   RefreshCw,
   Radio
 } from 'lucide-react';
-import { Fault, SegmentType, NETWORK_HIERARCHY } from './types';
+import { Fault, SegmentType, NETWORK_HIERARCHY, NodeType } from './types';
 import { useSimulationContext } from './context/SimulationContext';
+import { buildMockHierarchyPathForLayer } from './utils/hierarchyHelper';
 
 const MOCK_FAULTS: Fault[] = [
   {
@@ -104,13 +105,16 @@ export default function App() {
                 <p className="text-lg font-black uppercase">SIM</p>
               </div>
             </Link>
-            <div className="bg-white neo-border neo-shadow-sm p-4 flex items-center gap-3">
-              <Activity className="w-8 h-8 text-green-500" />
+            <Link
+              to="/manual"
+              className="bg-white neo-border neo-shadow-sm p-4 flex items-center gap-3 group neo-press-sm cursor-pointer"
+            >
+              <Search className="w-8 h-8 text-black group-hover:scale-110 transition-transform" />
               <div>
-                <p className="text-xs font-black uppercase opacity-50">Active Nodes</p>
-                <p className="text-2xl font-black">12,402</p>
+                <p className="text-xs font-black uppercase opacity-50">Manual</p>
+                <p className="text-lg font-black uppercase">ENTRY</p>
               </div>
-            </div>
+            </Link>
             <div className="bg-white neo-border neo-shadow-sm p-4 flex items-center gap-3">
               <AlertTriangle className="w-8 h-8 text-red-500 animate-blink" />
               <div>
@@ -261,6 +265,9 @@ export default function App() {
                   const isHealthy = NETWORK_HIERARCHY.indexOf(selectedFault.segment_type) > index;
                   const isDownstream = NETWORK_HIERARCHY.indexOf(selectedFault.segment_type) < index;
 
+                  const mockPath = buildMockHierarchyPathForLayer(selectedFault.segment_type as NodeType);
+                  const nodeAtLayer = mockPath[layer as NodeType];
+
                   return (
                     <div key={layer} className="flex flex-col items-center w-full">
                       <div
@@ -274,7 +281,7 @@ export default function App() {
                       >
                         <p className="text-xs font-black uppercase opacity-60 mb-1">{layer}</p>
                         <p className="text-2xl font-black uppercase">
-                          {isFaultLayer ? selectedFault.fault_layer : `${layer} Node`}
+                          {nodeAtLayer ? nodeAtLayer.label : `${layer} Node`}
                         </p>
                         {isFaultLayer && (
                           <div className="mt-2 pt-2 border-t border-white/30 text-sm font-bold">

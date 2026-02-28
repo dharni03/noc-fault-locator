@@ -6,6 +6,7 @@ interface ConnectionLine {
   x1: number; y1: number;
   x2: number; y2: number;
   parentStatus: string;
+  sameRow: boolean;
 }
 
 interface NodeConnectionLinesProps {
@@ -44,14 +45,39 @@ export default function NodeConnectionLines({ nodes, containerRef }: NodeConnect
 
       const parentNode = nodeMap.get(node.parentId);
 
-      newLines.push({
-        id: `${node.parentId}-${node.id}`,
-        x1: parentRect.left + parentRect.width / 2 - containerRect.left,
-        y1: parentRect.top + parentRect.height - containerRect.top,
-        x2: childRect.left + childRect.width / 2 - containerRect.left,
-        y2: childRect.top - containerRect.top,
-        parentStatus: parentNode?.status || 'ACTIVE',
-      });
+      // Check if parent and child are on roughly the same row (e.g., aggregate <-> distribution blocks)
+      const sameRow = Math.abs(parentRect.top - childRect.top) < parentRect.height * 0.7;
+
+      if (sameRow) {
+        // Side-to-side connection: connect from parent edge to child edge
+        const parentOnLeft = parentRect.left < childRect.left;
+        const x1 = parentOnLeft
+          ? parentRect.right - containerRect.left
+          : parentRect.left - containerRect.left;
+        const y1 = parentRect.top + parentRect.height / 2 - containerRect.top;
+        const x2 = parentOnLeft
+          ? childRect.left - containerRect.left
+          : childRect.right - containerRect.left;
+        const y2 = childRect.top + childRect.height / 2 - containerRect.top;
+
+        newLines.push({
+          id: `${node.parentId}-${node.id}`,
+          x1, y1, x2, y2,
+          parentStatus: parentNode?.status || 'ACTIVE',
+          sameRow: true,
+        });
+      } else {
+        // Standard top-to-bottom elbow connector
+        newLines.push({
+          id: `${node.parentId}-${node.id}`,
+          x1: parentRect.left + parentRect.width / 2 - containerRect.left,
+          y1: parentRect.top + parentRect.height - containerRect.top,
+          x2: childRect.left + childRect.width / 2 - containerRect.left,
+          y2: childRect.top - containerRect.top,
+          parentStatus: parentNode?.status || 'ACTIVE',
+          sameRow: false,
+        });
+      }
     });
 
     setLines(newLines);
@@ -113,7 +139,29 @@ export default function NodeConnectionLines({ nodes, containerRef }: NodeConnect
     >
       {lines.map(line => {
         const style = getLineStyle(line.parentStatus);
-        // Draw an elbow connector: vertical down from parent, then horizontal, then vertical to child
+
+        if (line.sameRow) {
+          // Straight horizontal line for same-row connections (aggregate <-> distribution)
+          return (
+            <g key={line.id}>
+              <line
+                x1={line.x1} y1={line.y1}
+                x2={line.x2} y2={line.y2}
+                stroke={style.stroke}
+                strokeWidth={style.strokeWidth}
+                strokeDasharray={style.strokeDasharray}
+                className={`transition-all duration-500 ${style.className}`}
+              />
+              <circle
+                cx={line.x2} cy={line.y2} r={4}
+                fill={style.stroke}
+                className="transition-all duration-500"
+              />
+            </g>
+          );
+        }
+
+        // Elbow connector: vertical down, horizontal, vertical to child
         const midY = (line.y1 + line.y2) / 2;
 
         return (
@@ -126,11 +174,8 @@ export default function NodeConnectionLines({ nodes, containerRef }: NodeConnect
               strokeDasharray={style.strokeDasharray}
               className={`transition-all duration-500 ${style.className}`}
             />
-            {/* Arrow dot at child end */}
             <circle
-              cx={line.x2}
-              cy={line.y2}
-              r={4}
+              cx={line.x2} cy={line.y2} r={4}
               fill={style.stroke}
               className="transition-all duration-500"
             />

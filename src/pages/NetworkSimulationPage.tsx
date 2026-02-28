@@ -28,6 +28,8 @@ import { useSimulationContext } from '../context/SimulationContext';
 import TopologyTree from '../components/TopologyTree';
 import topologyData from '../data/networkTopology.json';
 import { generateRandomTelemetry, diagnoseNodeWithML, MLDiagnosisResult } from '../utils/mlEngine';
+import { sendFaultReportEmail, FaultReportDetails } from '../utils/emailService';
+import { buildFullHierarchyPath } from '../utils/hierarchyHelper';
 
 // Which fault types are applicable per node type
 const FAULTS_FOR_NODE: Record<NodeType, { key: FaultScenario; label: string; icon: React.ReactNode; color: string }[]> = {
@@ -44,7 +46,9 @@ const FAULTS_FOR_NODE: Record<NodeType, { key: FaultScenario; label: string; ico
     { key: 'FIBER_CUT', label: 'FIBER CUT', icon: <Wifi className="w-4 h-4" />, color: '#ef4444' },
     { key: 'OLT_HARDWARE_FAILURE', label: 'OLT HW FAILURE', icon: <Cpu className="w-4 h-4" />, color: '#f97316' },
   ],
-  ONT: [],
+  ONT: [
+    { key: 'ONT_FAILURE', label: 'ONT FAILURE', icon: <Wifi className="w-4 h-4" />, color: '#737373' },
+  ],
 };
 
 // The hierarchy layers for the path view
@@ -158,9 +162,28 @@ export default function NetworkSimulationPage() {
     setPopup(null);
     // Get latest node state from current nodes
     const latestNode = nodes.find(n => n.id === node.id) || node;
+    const diagnosis = mlMetadata[latestNode.id];
+    
     setSelectedFaultNode(latestNode);
     setSimView('detail');
-  }, [nodes]);
+
+    if (diagnosis) {
+      // Send the automated email report when they view the details
+      const severityStr = diagnosis.faultLabel.includes('HEALTHY') || diagnosis.faultLabel.includes('Healthy') ? 'HEALTHY' : 'CRITICAL';
+      const emailReport: FaultReportDetails = {
+        severity: severityStr,
+        layer_type: latestNode.nodeType,
+        sector: latestNode.sector,
+        specific_error: diagnosis.category,
+        fault_label: diagnosis.faultLabel,
+        confidence: diagnosis.aiConfidence.toFixed(1),
+        time: new Date().toLocaleString(),
+      };
+      
+      // Fire and forget
+      sendFaultReportEmail(emailReport).catch(console.error);
+    }
+  }, [nodes, mlMetadata]);
 
   const handleInjectFault = useCallback(async (targetNodeId: string, node: TopologyNode) => {
     if (isCascading || isInjectingML) return;
@@ -478,8 +501,8 @@ export default function NetworkSimulationPage() {
                   const isDownstream = faultLayerIndex < index;
 
                   // Find the actual node on the path from NOC to the faulted node for this layer
-                  const pathNodes = getAncestryPath(selectedFaultNode.id, nodeMap);
-                  const pathNode = pathNodes.find(n => n.nodeType === layer);
+                  const fullPath = buildFullHierarchyPath(selectedFaultNode.id, nodeMap);
+                  const nodeForLayer = fullPath[layer];
 
                   return (
                     <div key={layer} className="flex flex-col items-center w-full">
@@ -496,8 +519,8 @@ export default function NetworkSimulationPage() {
                         <p className="text-2xl font-black uppercase">
                           {isFaultLayer
                             ? selectedFaultNode.label
-                            : pathNode
-                              ? pathNode.label
+                            : nodeForLayer
+                              ? nodeForLayer.label
                               : `${layer} Node`
                           }
                         </p>
