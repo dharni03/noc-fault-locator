@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   AlertTriangle,
@@ -10,9 +11,11 @@ import {
   Clock,
   Layers,
   Search,
-  RefreshCw
+  RefreshCw,
+  Radio
 } from 'lucide-react';
 import { Fault, SegmentType, NETWORK_HIERARCHY } from './types';
+import { useSimulationContext } from './context/SimulationContext';
 
 const MOCK_FAULTS: Fault[] = [
   {
@@ -54,6 +57,7 @@ export default function App() {
   const [faults, setFaults] = useState<Fault[]>(MOCK_FAULTS);
   const [selectedFault, setSelectedFault] = useState<Fault | null>(null);
   const [view, setView] = useState<'dashboard' | 'detail' | 'path'>('dashboard');
+  const { systemStatus } = useSimulationContext();
 
   const handleCardClick = (fault: Fault) => {
     setSelectedFault(fault);
@@ -79,10 +83,27 @@ export default function App() {
               FAULT <span className="text-red-500">DETECTOR</span>
             </h1>
             <p className="text-xl font-bold bg-black text-white px-4 py-1 inline-block neo-shadow-sm">
-              SYSTEM STATUS: <span className="text-red-400 animate-blink">DEGRADED</span>
+              SYSTEM STATUS:{' '}
+              <span className={
+                systemStatus === 'CRITICAL' ? 'text-red-400 animate-blink' :
+                systemStatus === 'DEGRADED' ? 'text-yellow-400 animate-blink' :
+                'text-green-400'
+              }>
+                {systemStatus}
+              </span>
             </p>
           </div>
-          <div className="flex gap-4">
+          <div className="flex gap-4 items-end">
+            <Link
+              to="/network-simulation"
+              className="bg-cyan-400 neo-border neo-shadow-sm neo-press-sm p-4 flex items-center gap-3 group"
+            >
+              <Radio className="w-8 h-8 text-black group-hover:scale-110 transition-transform" />
+              <div>
+                <p className="text-xs font-black uppercase opacity-50">Network</p>
+                <p className="text-lg font-black uppercase">SIM</p>
+              </div>
+            </Link>
             <div className="bg-white neo-border neo-shadow-sm p-4 flex items-center gap-3">
               <Activity className="w-8 h-8 text-green-500" />
               <div>

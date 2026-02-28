@@ -13,3 +13,38 @@ export interface Fault {
 }
 
 export const NETWORK_HIERARCHY: SegmentType[] = ['NOC', 'Aggregation', 'Block', 'GP', 'OLT', 'ONT'];
+
+// --- Network Simulation Types ---
+
+export type NodeType = 'NOC' | 'BLOCK' | 'GP' | 'OLT' | 'ONT';
+export type BlockType = 'AGGREGATE' | 'DISTRIBUTION' | null;
+export type NodeStatus = 'ACTIVE' | 'DEGRADED' | 'FAILED';
+
+export type FaultScenario =
+  | 'FIBER_CUT'
+  | 'OLT_HARDWARE_FAILURE'
+  | 'GP_CONGESTION'
+  | 'AGGREGATION_BLOCK_FAILURE'
+  | 'NOC_FAILURE';
+
+export interface TopologyNode {
+  id: string;
+  label: string;
+  nodeType: NodeType;
+  blockType: BlockType;
+  parentId: string | null;
+  status: NodeStatus;
+  faultType: string | null;
+  timestamp: string | null;
+  children: string[];
+}
+
+export type SystemStatus = 'OPERATIONAL' | 'DEGRADED' | 'CRITICAL';
+
+export const FAULT_LABELS: Record<FaultScenario, string> = {
+  FIBER_CUT: 'FIBER CUT',
+  OLT_HARDWARE_FAILURE: 'OLT HW FAILURE',
+  GP_CONGESTION: 'GP CONGESTION',
+  AGGREGATION_BLOCK_FAILURE: 'AGG BLOCK FAIL',
+  NOC_FAILURE: 'NOC FAILURE',
+};
