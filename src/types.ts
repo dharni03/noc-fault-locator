@@ -22,6 +22,8 @@ export type NodeStatus = 'ACTIVE' | 'DEGRADED' | 'FAILED';
 
 export type FaultScenario = string;
 
+export type SectorType = 'Household' | 'Industries' | 'Public';
+
 export interface TopologyNode {
   id: string;
   label: string;
@@ -32,6 +34,7 @@ export interface TopologyNode {
   faultType: string | null;
   timestamp: string | null;
   children: string[];
+  sector?: SectorType | null;
 }
 
 export type SystemStatus = 'OPERATIONAL' | 'DEGRADED' | 'CRITICAL';

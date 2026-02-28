@@ -35,12 +35,8 @@ export interface MLDiagnosisResult {
  * Generates somewhat realistic random telemetry data for a node to feed to the ML model.
  */
 export function generateRandomTelemetry(node: TopologyNode): MLTelemetryData {
-  // Determine sector based on node type roughly
-  const sectors = ["Household", "Industries", "Public"];
-  let sector = "Public";
-  if (node.nodeType === "ONT" || node.nodeType === "OLT") {
-    sector = Math.random() > 0.5 ? "Household" : "Industries";
-  }
+  // Use the node's assigned sector, or default to 'Industries' for GP/BLOCK/NOC
+  const sector = node.sector || 'Industries';
 
   // Generate values that look like a failing or degraded node
   return {

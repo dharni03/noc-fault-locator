@@ -134,6 +134,14 @@ export default function TopologyNodeCard({ node, nodeRef, onClick, onAnalyse, fa
           {node.label}
         </p>
 
+        {/* Sector label for OLT/ONT */}
+        {(node.nodeType === 'OLT' || node.nodeType === 'ONT') && node.sector && (
+          <p className={`text-[7px] font-bold uppercase tracking-wider mt-0.5 ${textColor} opacity-60`}>
+            {node.sector === 'Household' ? '🏠' : node.sector === 'Industries' ? '🏭' : '🏛'}{' '}
+            {node.sector}
+          </p>
+        )}
+
         {/* Status line */}
         <div className="mt-auto pt-2">
           <div className={`border-t-2 ${isDarkNode || node.status === 'FAILED' ? 'border-white/30' : 'border-black/20'} pt-1`}>

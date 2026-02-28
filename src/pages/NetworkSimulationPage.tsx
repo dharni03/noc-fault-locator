@@ -93,6 +93,7 @@ export default function NetworkSimulationPage() {
   const [selectedFaultNode, setSelectedFaultNode] = useState<TopologyNode | null>(null);
   const [rootCauseNodeIds, setRootCauseNodeIds] = useState<Set<string>>(new Set());
   const [mlMetadata, setMlMetadata] = useState<Record<string, MLDiagnosisResult>>({});
+  const [feedbackGiven, setFeedbackGiven] = useState(false);
   const { setSystemStatus } = useSimulationContext();
   const cascadeTimers = useRef<number[]>([]);
   const pageRef = useRef<HTMLDivElement>(null);
@@ -231,6 +232,7 @@ export default function NetworkSimulationPage() {
   const handleBackToTree = useCallback(() => {
     setSimView('tree');
     setSelectedFaultNode(null);
+    setFeedbackGiven(false);
   }, []);
 
   // Count stats
@@ -389,13 +391,44 @@ export default function NetworkSimulationPage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                   <DetailItem label="Fault Layer" value={selectedFaultNode.label} icon={<Layers />} />
                   <DetailItem label="Specific Error" value={mlMetadata[selectedFaultNode.id]?.category || selectedFaultNode.nodeType} icon={<Network />} />
                   <DetailItem label="Current Status" value={selectedFaultNode.status} icon={<Activity />} />
-                  <DetailItem label="Error Type" value={getErrorType(selectedFaultNode)} icon={<AlertTriangle />} />
                   <DetailItem label="Detection Time" value={selectedFaultNode.timestamp || 'N/A'} icon={<Clock />} />
                   <DetailItem label="Fault Type" value={selectedFaultNode.faultType || 'N/A'} icon={<Zap />} />
+                  {(selectedFaultNode.nodeType === 'OLT' || selectedFaultNode.nodeType === 'ONT') && selectedFaultNode.sector ? (
+                    <DetailItem label="Sector" value={`${selectedFaultNode.sector === 'Household' ? '🏠' : selectedFaultNode.sector === 'Industries' ? '🏭' : '🏛'} ${selectedFaultNode.sector}`} icon={<Radio />} />
+                  ) : (
+                    <DetailItem label="Segment Type" value={selectedFaultNode.nodeType} icon={<Radio />} />
+                  )}
+                </div>
+
+                {/* Satisfaction feedback box (dummy) — full width below the grid */}
+                <div className="mb-8">
+                  <div className="flex items-center gap-3 mb-2">
+                    <AlertTriangle className="w-5 h-5 opacity-30" />
+                    <p className="text-[9px] font-black uppercase tracking-widest opacity-50">Feedback</p>
+                  </div>
+                  {!feedbackGiven ? (
+                    <div className="neo-border p-4 bg-[#f8f8f8]">
+                      <p className="text-sm font-bold uppercase mb-3">Satisfied with this diagnosis?</p>
+                      <div className="flex gap-3">
+                        <button
+                          onClick={() => setFeedbackGiven(true)}
+                          className="flex-1 bg-green-600 text-white py-2 text-xs font-black uppercase neo-border neo-press-sm hover:bg-green-700 transition-colors"
+                        >YES</button>
+                        <button
+                          onClick={() => setFeedbackGiven(true)}
+                          className="flex-1 bg-red-500 text-white py-2 text-xs font-black uppercase neo-border neo-press-sm hover:bg-red-600 transition-colors"
+                        >NO</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="neo-border p-4 bg-green-50">
+                      <p className="text-sm font-bold uppercase text-green-700">✓ Thank you for the response</p>
+                    </div>
+                  )}
                 </div>
 
                 <div className="bg-[#f0f0f0] neo-border p-6 mb-8">
