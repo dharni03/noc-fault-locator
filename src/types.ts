@@ -20,12 +20,7 @@ export type NodeType = 'NOC' | 'BLOCK' | 'GP' | 'OLT' | 'ONT';
 export type BlockType = 'AGGREGATE' | 'DISTRIBUTION' | null;
 export type NodeStatus = 'ACTIVE' | 'DEGRADED' | 'FAILED';
 
-export type FaultScenario =
-  | 'FIBER_CUT'
-  | 'OLT_HARDWARE_FAILURE'
-  | 'GP_CONGESTION'
-  | 'AGGREGATION_BLOCK_FAILURE'
-  | 'NOC_FAILURE';
+export type FaultScenario = string;
 
 export interface TopologyNode {
   id: string;

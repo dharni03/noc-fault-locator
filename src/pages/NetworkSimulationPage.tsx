@@ -27,6 +27,7 @@ import {
 import { useSimulationContext } from '../context/SimulationContext';
 import TopologyTree from '../components/TopologyTree';
 import topologyData from '../data/networkTopology.json';
+import { generateRandomTelemetry, diagnoseNodeWithML, MLDiagnosisResult } from '../utils/mlEngine';
 
 // Which fault types are applicable per node type
 const FAULTS_FOR_NODE: Record<NodeType, { key: FaultScenario; label: string; icon: React.ReactNode; color: string }[]> = {
@@ -87,9 +88,11 @@ export default function NetworkSimulationPage() {
   const [nodes, setNodes] = useState<TopologyNode[]>(topologyData.nodes as TopologyNode[]);
   const [isCascading, setIsCascading] = useState(false);
   const [popup, setPopup] = useState<PopupState | null>(null);
+  const [isInjectingML, setIsInjectingML] = useState(false);
   const [simView, setSimView] = useState<'tree' | 'detail' | 'path'>('tree');
   const [selectedFaultNode, setSelectedFaultNode] = useState<TopologyNode | null>(null);
   const [rootCauseNodeIds, setRootCauseNodeIds] = useState<Set<string>>(new Set());
+  const [mlMetadata, setMlMetadata] = useState<Record<string, MLDiagnosisResult>>({});
   const { setSystemStatus } = useSimulationContext();
   const cascadeTimers = useRef<number[]>([]);
   const pageRef = useRef<HTMLDivElement>(null);
@@ -158,41 +161,60 @@ export default function NetworkSimulationPage() {
     setSimView('detail');
   }, [nodes]);
 
-  const handleInjectFault = useCallback((targetNodeId: string, faultType: FaultScenario) => {
-    if (isCascading) return;
-    setPopup(null);
-    setRootCauseNodeIds(prev => new Set([...prev, targetNodeId]));
+  const handleInjectFault = useCallback(async (targetNodeId: string, node: TopologyNode) => {
+    if (isCascading || isInjectingML) return;
+    
+    setIsInjectingML(true);
+    try {
+      // 1. Generate fake telemetry data for the clicked node
+      const telemetry = generateRandomTelemetry(node);
+      
+      // 2. Call the ML backend
+      const mlResult = await diagnoseNodeWithML(telemetry);
+      
+      // Store the full ML metadata for this node
+      setMlMetadata(prev => ({ ...prev, [targetNodeId]: mlResult }));
+      
+      setPopup(null);
+      setRootCauseNodeIds(prev => new Set([...prev, targetNodeId]));
 
-    const timestamp = new Date().toLocaleString();
-    setIsCascading(true);
+      const timestamp = new Date().toLocaleString();
+      setIsCascading(true);
 
-    const finalNodes = propagateFault(nodes, targetNodeId, faultType, timestamp);
-    const tempMap = new Map<string, TopologyNode>();
-    nodes.forEach(n => tempMap.set(n.id, n));
-    const tiers = buildCascadeTiers(targetNodeId, tempMap);
-    const finalMap = new Map<string, TopologyNode>();
-    finalNodes.forEach(n => finalMap.set(n.id, n));
+      // Pass the ML faultLabel string for propagation
+      const finalNodes = propagateFault(nodes, targetNodeId, mlResult.faultLabel, timestamp);
+      const tempMap = new Map<string, TopologyNode>();
+      nodes.forEach(n => tempMap.set(n.id, n));
+      const tiers = buildCascadeTiers(targetNodeId, tempMap);
+      const finalMap = new Map<string, TopologyNode>();
+      finalNodes.forEach(n => finalMap.set(n.id, n));
 
-    tiers.forEach((tierIds, tierIndex) => {
-      const timer = window.setTimeout(() => {
-        setNodes(prev => {
-          return prev.map(n => {
-            if (tierIds.includes(n.id)) {
-              const finalState = finalMap.get(n.id);
-              return finalState || n;
-            }
-            return n;
+      tiers.forEach((tierIds, tierIndex) => {
+        const timer = window.setTimeout(() => {
+          setNodes(prev => {
+            return prev.map(n => {
+              if (tierIds.includes(n.id)) {
+                const finalState = finalMap.get(n.id);
+                return finalState || n;
+              }
+              return n;
+            });
           });
-        });
 
-        if (tierIndex === tiers.length - 1) {
-          setIsCascading(false);
-        }
-      }, tierIndex * CASCADE_DELAY);
+          if (tierIndex === tiers.length - 1) {
+            setIsCascading(false);
+          }
+        }, tierIndex * CASCADE_DELAY);
 
-      cascadeTimers.current.push(timer);
-    });
-  }, [nodes, isCascading]);
+        cascadeTimers.current.push(timer);
+      });
+
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsInjectingML(false);
+    }
+  }, [nodes, isCascading, isInjectingML]);
 
   const handleReset = useCallback(() => {
     cascadeTimers.current.forEach(t => clearTimeout(t));
@@ -203,6 +225,7 @@ export default function NetworkSimulationPage() {
     setSimView('tree');
     setSelectedFaultNode(null);
     setRootCauseNodeIds(new Set());
+    setMlMetadata({});
   }, [nodes]);
 
   const handleBackToTree = useCallback(() => {
@@ -347,6 +370,13 @@ export default function NetworkSimulationPage() {
               </div>
 
               <div className="bg-white neo-border neo-shadow p-8 relative">
+                {/* AI Confidence badge in top-right */}
+                {selectedFaultNode && mlMetadata[selectedFaultNode.id] && (
+                  <div className="absolute top-4 right-4 bg-black text-white px-4 py-2 neo-border">
+                    <p className="text-[9px] font-black uppercase tracking-widest opacity-60">AI Confidence</p>
+                    <p className="text-2xl font-black text-green-400">{mlMetadata[selectedFaultNode.id].aiConfidence.toFixed(1)}%</p>
+                  </div>
+                )}
                 <div className="flex items-center gap-4 mb-8">
                   <div className="p-4 bg-red-500 neo-border">
                     <AlertTriangle className="w-10 h-10 text-white animate-blink" />
@@ -361,7 +391,7 @@ export default function NetworkSimulationPage() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
                   <DetailItem label="Fault Layer" value={selectedFaultNode.label} icon={<Layers />} />
-                  <DetailItem label="Segment Type" value={selectedFaultNode.nodeType} icon={<Network />} />
+                  <DetailItem label="Specific Error" value={mlMetadata[selectedFaultNode.id]?.category || selectedFaultNode.nodeType} icon={<Network />} />
                   <DetailItem label="Current Status" value={selectedFaultNode.status} icon={<Activity />} />
                   <DetailItem label="Error Type" value={getErrorType(selectedFaultNode)} icon={<AlertTriangle />} />
                   <DetailItem label="Detection Time" value={selectedFaultNode.timestamp || 'N/A'} icon={<Clock />} />
@@ -517,17 +547,23 @@ export default function NetworkSimulationPage() {
               </div>
 
               <div className="flex flex-col gap-2">
-                {FAULTS_FOR_NODE[popup.node.nodeType].map(fault => (
-                  <button
-                    key={fault.key}
-                    onClick={() => handleInjectFault(popup.node.id, fault.key)}
-                    className="neo-border neo-press-sm p-3 font-black uppercase text-xs tracking-wider flex items-center gap-2 text-white transition-all duration-200 hover:translate-x-px hover:translate-y-px"
-                    style={{ backgroundColor: fault.color }}
-                  >
-                    {fault.icon}
-                    {fault.label}
-                  </button>
-                ))}
+                <button
+                  onClick={() => handleInjectFault(popup.node.id, popup.node)}
+                  disabled={isInjectingML}
+                  className={`neo-border neo-press-sm p-3 font-black uppercase text-xs tracking-wider flex items-center justify-center gap-2 text-white transition-all duration-200 ${isInjectingML ? 'bg-gray-500 cursor-not-allowed opacity-80' : 'bg-red-500 hover:translate-x-px hover:translate-y-px hover:bg-red-600'}`}
+                >
+                  {isInjectingML ? (
+                    <>
+                      <div className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+                      ANALYZING TELEMETRY...
+                    </>
+                  ) : (
+                    <>
+                      <Zap className="w-4 h-4" />
+                      INJECT LIVE FAULT (ML)
+                    </>
+                  )}
+                </button>
               </div>
 
               <div className="absolute left-1/2 -translate-x-1/2 -bottom-3 w-0 h-0 border-l-[10px] border-r-[10px] border-t-[12px] border-l-transparent border-r-transparent border-t-black" />

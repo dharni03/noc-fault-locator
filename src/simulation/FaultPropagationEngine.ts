@@ -202,8 +202,30 @@ export function propagateFault(
       });
     }
 
-    default:
-      return nodes;
+    default: {
+      // Handle dynamic ML strings: root fails, downstream fails
+      const allDescendants = getDescendants(targetNodeId, nodeMap);
+
+      return nodes.map((n) => {
+        if (n.id === targetNodeId) {
+          return {
+            ...n,
+            status: "FAILED" as NodeStatus,
+            faultType: faultType,
+            timestamp,
+          };
+        }
+        if (allDescendants.includes(n.id)) {
+          return {
+            ...n,
+            status: "FAILED" as NodeStatus,
+            faultType: `Offline (${faultType})`,
+            timestamp,
+          };
+        }
+        return n;
+      });
+    }
   }
 }
 
