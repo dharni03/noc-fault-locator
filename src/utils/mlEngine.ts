@@ -38,17 +38,51 @@ export function generateRandomTelemetry(node: TopologyNode): MLTelemetryData {
   // Use the node's assigned sector, or default to 'Industries' for GP/BLOCK/NOC
   const sector = node.sector || 'Industries';
 
+  // Define targeted fault profiles to minimize "NONE" specific errors from ML
+  const profiles = [
+    {
+      // Profile A: Optical Fault (Very low optical power, others relatively normal)
+      lat: () => parseFloat((Math.random() * 50 + 20).toFixed(2)), // 20-70ms
+      loss: () => parseFloat((Math.random() * 2 + 0.5).toFixed(2)), // 0.5-2.5%
+      jitter: () => parseFloat((Math.random() * 10 + 1).toFixed(2)), // 1-11ms
+      opt: () => parseFloat((-(Math.random() * 15 + 35)).toFixed(2)), // -35 to -50 dBm
+      crc: () => Math.floor(Math.random() * 100) + 10, // 10-110
+      cpu: () => parseFloat((Math.random() * 20 + 30).toFixed(2)), // 30-50%
+    },
+    {
+      // Profile B: Network Congestion (High latency, high packet loss, high jitter)
+      lat: () => parseFloat((Math.random() * 800 + 400).toFixed(2)), // 400-1200ms
+      loss: () => parseFloat((Math.random() * 40 + 20).toFixed(2)), // 20-60%
+      jitter: () => parseFloat((Math.random() * 100 + 50).toFixed(2)), // 50-150ms
+      opt: () => parseFloat((-(Math.random() * 10 + 15)).toFixed(2)), // -15 to -25 dBm
+      crc: () => Math.floor(Math.random() * 200) + 50, // 50-250
+      cpu: () => parseFloat((Math.random() * 30 + 50).toFixed(2)), // 50-80%
+    },
+    {
+      // Profile C: Hardware/Processing Error (High CPU, high CRC errors)
+      lat: () => parseFloat((Math.random() * 100 + 40).toFixed(2)), // 40-140ms
+      loss: () => parseFloat((Math.random() * 5 + 1).toFixed(2)), // 1-6%
+      jitter: () => parseFloat((Math.random() * 20 + 5).toFixed(2)), // 5-25ms
+      opt: () => parseFloat((-(Math.random() * 10 + 15)).toFixed(2)), // -15 to -25 dBm
+      crc: () => Math.floor(Math.random() * 5000 + 1000), // 1000-6000
+      cpu: () => parseFloat((Math.random() * 10 + 90).toFixed(2)), // 90-100%
+    }
+  ];
+
+  // Randomly select one of the 3 fault profiles
+  const profile = profiles[Math.floor(Math.random() * profiles.length)];
+
   // Generate values that look like a failing or degraded node
   return {
     sector,
-    lat: parseFloat((Math.random() * 100 + 20).toFixed(2)), // 20ms to 120ms latency
-    loss: parseFloat((Math.random() * 10 + 0.5).toFixed(2)), // 0.5% to 10.5% packet loss
-    jitter: parseFloat((Math.random() * 20 + 1).toFixed(2)), // 1ms to 21ms jitter
-    opt: parseFloat((-(Math.random() * 15 + 15)).toFixed(2)), // -15dBm to -30dBm optical power
-    crc: Math.floor(Math.random() * 500) + 10, // 10 to 510 CRC errors
+    lat: profile.lat(),
+    loss: profile.loss(),
+    jitter: profile.jitter(),
+    opt: profile.opt(),
+    crc: profile.crc(),
     status: 1, // 1 for alert/down state
-    cpu: parseFloat((Math.random() * 40 + 50).toFixed(2)), // 50% to 90% CPU
-    snmp: Math.floor(Math.random() * 3), // 0, 1, or 2 SNMP traps
+    cpu: profile.cpu(),
+    snmp: Math.floor(Math.random() * 3) + 1, // 1 to 3 SNMP traps
     hop: Math.floor(Math.random() * 5) + 1, // 1 to 5 hops
   };
 }
